@@ -1,0 +1,133 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime
+
+def run_all_checks(file_path):
+    """
+    Load data from a CSV file and run all data quality checks, 
+    printing results for each check.
+    
+    Parameters:
+    - file_path: str, path to the input CSV file to check.
+    """
+    # Load the dataset
+    data = pd.read_csv(file_path)
+
+    # Display basic information
+    print("Initial Dataset Information:")
+    print(data.info())
+
+    # Perform data quality checks
+    check_blank_cells(data)
+    count_invalidDirection_and_blank_rows(data)
+    humidity_count_invalid_and_blank_rows(data)
+    check_date_column(data, 'Date')
+    check_rain_columns(data)
+
+# Individual data quality check functions
+
+def check_blank_cells(data):
+    print("\nColumns with Blank Cells:")
+    blank_cells_count = data.isna().sum()
+    total_rows = len(data)
+    blank_columns = blank_cells_count[blank_cells_count > 0]
+    blank_percentages = (blank_columns / total_rows) * 100
+    blank_summary = pd.DataFrame({
+        'Blank Cells Count': blank_columns,
+        'Percentage of Blanks (%)': blank_percentages
+    })
+    print(blank_summary)
+
+def count_invalidDirection_and_blank_rows(data):
+    print("\nCheck for letters other than N,E,W,S in WindGustDir, WindDir9am and WindDir3pm columns:")
+    allowed_chars = {'N', 'E', 'W', 'S'}
+    invalid_row_count = 0
+    blank_row_count = 0
+    columns_to_check = ['WindGustDir', 'WindDir9am', 'WindDir3pm']
+
+    def is_valid_direction(value):
+        return set(str(value)).issubset(allowed_chars)
+
+    for _, row in data.iterrows():
+        has_invalid = False
+        has_blank = False
+        for col in columns_to_check:
+            cell_value = str(row[col]).strip()
+            if cell_value == '' or pd.isna(row[col]):
+                has_blank = True
+            elif not is_valid_direction(cell_value):
+                has_invalid = True
+        if has_blank:
+            blank_row_count += 1
+        if has_invalid:
+            invalid_row_count += 1
+
+    print(f"Rows with blank cells in specified columns: {blank_row_count}")
+    print(f"Rows with invalid letters in specified columns: {invalid_row_count}")
+
+def humidity_count_invalid_and_blank_rows(data):
+    print("\nRange Checks for Humidity columns:")
+    invalid_number_count = 0
+    blank_row_count = 0
+    columns_to_check = ['Humidity9am', 'Humidity3pm']
+
+    for _, row in data.iterrows():
+        has_invalid = False
+        has_blank = False
+        for col in columns_to_check:
+            cell_value = row[col]
+            if pd.isna(cell_value):
+                has_blank = True
+            elif not (0 <= cell_value <= 100):
+                has_invalid = True
+        if has_blank:
+            blank_row_count += 1
+        if has_invalid:
+            invalid_number_count += 1
+
+    print(f"Rows with blank cells in specified columns: {blank_row_count}")
+    print(f"Rows with invalid numbers in specified columns: {invalid_number_count}")
+
+def check_date_column(data, date_column='Date'):
+    print(f"\nChecking date format and future dates in '{date_column}' column:")
+    blank_count = 0
+    invalid_format_count = 0
+    future_date_count = 0
+
+    for value in data[date_column]:
+        if pd.isna(value) or str(value).strip() == '':
+            blank_count += 1
+        else:
+            try:
+                parsed_date = datetime.strptime(value, "%Y-%m-%d")
+                if parsed_date > datetime.now():
+                    future_date_count += 1
+            except ValueError:
+                invalid_format_count += 1
+
+    print(f"Blank cells in '{date_column}': {blank_count}")
+    print(f"Invalid date format count in '{date_column}': {invalid_format_count}")
+    print(f"Future date count in '{date_column}': {future_date_count}")
+
+def check_rain_columns(data):
+    print("\nChecking 'RainToday' and 'RainTomorrow' columns for valid values:")
+    columns_to_check = ['RainToday', 'RainTomorrow']
+    allowed_values = {'YES', 'NO'}
+    invalid_counts = {col: 0 for col in columns_to_check}
+    blank_counts = {col: 0 for col in columns_to_check}
+
+    for col in columns_to_check:
+        for value in data[col]:
+            if pd.isna(value):
+                blank_counts[col] += 1
+            elif str(value).strip().upper() not in allowed_values:
+                invalid_counts[col] += 1
+
+    for col in columns_to_check:
+        print(f"\nColumn: {col}")
+        print(f"Blank cells: {blank_counts[col]}")
+        print(f"Invalid cells: {invalid_counts[col]}")
+
+# Run the main function
+# Example usage:
+run_all_checks('/Users/shelomi/Documents/UNITEC/Data Warehouse and Big data/Assignment2/dataset/weatherAUS_before.csv')
